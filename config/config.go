@@ -41,3 +41,18 @@ func GetAllMerchants() ([]models.Merchants, error) {
 	}
 	return merchants, nil
 }
+
+func UpdateMerchants(merchants []models.Merchants) error {
+	tx := DB.Begin()
+
+	for _, merchant := range merchants {
+		if err := tx.Model(&models.Merchants{}).
+			Where("id = ?", merchant.ID).
+			Updates(merchant).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}

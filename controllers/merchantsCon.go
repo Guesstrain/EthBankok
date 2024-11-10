@@ -16,7 +16,7 @@ func AddMerchantHandler(c *gin.Context, service services.MerchantService) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	newMerchant.Credit = 11.11
 	if err := service.AddMerchant(newMerchant); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add merchant"})
 		return
