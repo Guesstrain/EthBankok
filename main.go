@@ -33,11 +33,13 @@ func main() {
 		controllers.GetTransactionHistory(c)
 	})
 
+	go scheduleCreditUpdate(merchantService)
+
 	router.Run(":8080")
 }
 
 func scheduleCreditUpdate(merchantService services.MerchantService) {
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -68,7 +70,9 @@ func updateAllMerchantsCredit(merchantService services.MerchantService) error {
 		wg.Add(1)
 		go func(m models.Merchants) {
 			defer wg.Done()
-			updatedMerchant, err := services.GetCredit(m)
+			// updatedMerchant, err := services.GetCredit(m)
+			updatedMerchant := merchant
+			updatedMerchant.Credit = 233
 			if err != nil {
 				errorsCh <- err // Send error to channel
 			} else {
