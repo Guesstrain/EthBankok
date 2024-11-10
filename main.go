@@ -39,7 +39,7 @@ func main() {
 }
 
 func scheduleCreditUpdate(merchantService services.MerchantService) {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
 	for {
