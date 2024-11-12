@@ -14,6 +14,7 @@ type MerchantService interface {
 	AddMerchant(merchant *models.Merchants) error
 	GetMerchantByID(id uint) (models.Merchants, error)
 	GetAllMerchants() ([]models.Merchants, error)
+	GetMerchantByAddress(address string) (models.Merchants, error)
 }
 
 type MerchantServiceImpl struct{}
@@ -25,6 +26,10 @@ func (m *MerchantServiceImpl) AddMerchant(merchant *models.Merchants) error {
 // GetMerchantByID retrieves a merchant by ID
 func (m *MerchantServiceImpl) GetMerchantByID(id uint) (models.Merchants, error) {
 	return config.GetMerchantByID(id)
+}
+
+func (m *MerchantServiceImpl) GetMerchantByAddress(address string) (models.Merchants, error) {
+	return config.GetMerchantByAddress(address)
 }
 
 // GetAllMerchants retrieves all merchants

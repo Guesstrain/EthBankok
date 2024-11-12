@@ -26,6 +26,9 @@ func main() {
 	router.GET("/merchants/:id", func(c *gin.Context) {
 		controllers.GetMerchantByIDHandler(c, merchantService)
 	})
+	router.GET("/merchants/byaddress", func(c *gin.Context) {
+		controllers.GetMerchantByAddressHandler(c, merchantService)
+	})
 	router.GET("/merchants", func(c *gin.Context) {
 		controllers.GetAllMerchantsHandler(c, merchantService)
 	})
