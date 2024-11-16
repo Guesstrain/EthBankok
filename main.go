@@ -41,8 +41,13 @@ func main() {
 	router.GET("/transactions", func(c *gin.Context) {
 		controllers.GetAllLoans(c)
 	})
+	router.GET("/transactionsPoly", func(c *gin.Context) {
+		controllers.GetAllLoansPoly(c)
+	})
 
 	go scheduleCreditUpdate(merchantService)
+	go scheduleBackup()
+	go scheduleRefund()
 
 	router.Run(":8080")
 }
@@ -59,6 +64,17 @@ func scheduleRefund() {
 		} else {
 			fmt.Println("Successfully updated merchant credits.")
 		}
+	}
+}
+
+func scheduleBackup() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+		fmt.Println("**************Begin Back Up***************")
+		controllers.BackupLoans()
 	}
 }
 
@@ -94,9 +110,8 @@ func updateAllMerchantsCredit(merchantService services.MerchantService) error {
 		wg.Add(1)
 		go func(m models.Merchants) {
 			defer wg.Done()
-			// updatedMerchant, err := services.GetCredit(m)
-			updatedMerchant := merchant
-			updatedMerchant.Credit = 233
+			updatedMerchant, err := services.GetCredit(m)
+			controllers.SetMerchantMaxLoanLimit(updatedMerchant)
 			if err != nil {
 				errorsCh <- err // Send error to channel
 			} else {

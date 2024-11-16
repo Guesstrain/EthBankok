@@ -2,27 +2,36 @@ package controllers
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Guesstrain/EthBankok/models"
+	"github.com/Guesstrain/EthBankok/services"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
-	"github.com/onflow/go-ethereum"
-	"github.com/onflow/go-ethereum/accounts/abi"
-	"github.com/onflow/go-ethereum/common"
-	"github.com/onflow/go-ethereum/ethclient"
 )
 
 const (
-	infuraURL          = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"
-	contractAddressHex = "0xAF7785F8dDFC9629949eDdb07Ba14d53Fc853C14"
-	privateKeyHex      = "83476b334581d65de37aee25349b36c5b5e917c7acddb3fc9ff50ef5feb87eaa" // Replace with your wallet's private key
-	walletAddressHex   = "0xDb90007b986c2711d3814b1760EDC3b2DfB71e76"
-	contractABI        = `[
+	infuraURL              = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"
+	infuraURLPoly          = "https://polygon-amoy.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"
+	contractAddressHex     = "0xAF7785F8dDFC9629949eDdb07Ba14d53Fc853C14"
+	contractAddressHexPloy = "0xB626C2801Dc36801eCC7D0E876451943FF0D36de"
+	privateKeyHex          = "83476b334581d65de37aee25349b36c5b5e917c7acddb3fc9ff50ef5feb87eaa" // Replace with your wallet's private key
+	walletAddressHex       = "0xDb90007b986c2711d3814b1760EDC3b2DfB71e76"
+	contractABI            = `[
 {
 "inputs": [
 {
@@ -1052,4 +1061,224 @@ func GetAllLoans(c *gin.Context) error {
 	}
 	c.JSON(http.StatusOK, loans)
 	return nil
+}
+
+func GetAllLoansPoly(c *gin.Context) error {
+	TargetParam := c.Query("target")
+
+	// Connect to the Ethereum network
+	client, err := ethclient.Dial(infuraURLPoly)
+	if err != nil {
+		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+
+	// Create an instance of the contract
+	contractAddr := common.HexToAddress(contractAddressHexPloy)
+	merchantAddr := common.HexToAddress(TargetParam)
+
+	// Use the ABI encoding to generate the appropriate call data for `getTransactions()`
+	// Here, we assume you've already parsed the contract ABI
+	contractAbi, err := abi.JSON(strings.NewReader(contractABI))
+	if err != nil {
+		log.Fatalf("Failed to parse ABI: %v", err)
+	}
+
+	// Pack the arguments for the `getTransactions` function
+	data, err := contractAbi.Pack("getTransactions", merchantAddr)
+	if err != nil {
+		log.Fatalf("Failed to pack arguments: %v", err)
+	}
+
+	// Prepare call message to invoke the contract
+	callMsg := ethereum.CallMsg{
+		To:   &contractAddr,
+		Data: data,
+	}
+
+	// Execute the call
+	result, err := client.CallContract(context.Background(), callMsg, nil)
+	if err != nil {
+		log.Fatalf("Error while calling the getTransactions function: %v", err)
+	}
+	var loans []models.Loan
+	var jsonString string
+	err = contractAbi.UnpackIntoInterface(&jsonString, "getTransactions", result)
+	if err != nil {
+		log.Fatalf("Failed to unpack result: %v", err)
+	}
+	cleanedString := strings.TrimSpace(jsonString)
+	cleanedString2 := strings.TrimPrefix(cleanedString, "~")
+	err = json.Unmarshal([]byte(cleanedString2), &loans)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	c.JSON(http.StatusOK, loans)
+	return nil
+}
+
+func GetMerchantLoans(address string) []models.Loan {
+	// Connect to the Ethereum network
+	client, err := ethclient.Dial(infuraURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+
+	// Create an instance of the contract
+	contractAddr := common.HexToAddress(contractAddressHex)
+	merchantAddr := common.HexToAddress(address)
+
+	contractAbi, err := abi.JSON(strings.NewReader(contractABI))
+	if err != nil {
+		log.Fatalf("Failed to parse ABI: %v", err)
+	}
+
+	// Pack the arguments for the `getTransactions` function
+	data, err := contractAbi.Pack("getTransactions", merchantAddr)
+	if err != nil {
+		log.Fatalf("Failed to pack arguments: %v", err)
+	}
+
+	// Prepare call message to invoke the contract
+	callMsg := ethereum.CallMsg{
+		To:   &contractAddr,
+		Data: data,
+	}
+
+	// Execute the call
+	result, err := client.CallContract(context.Background(), callMsg, nil)
+	if err != nil {
+		log.Fatalf("Error while calling the getTransactions function: %v", err)
+	}
+	var loans []models.Loan
+	var jsonString string
+	err = contractAbi.UnpackIntoInterface(&jsonString, "getTransactions", result)
+	if err != nil {
+		log.Fatalf("Failed to unpack result: %v", err)
+	}
+	cleanedString := strings.TrimSpace(jsonString)
+	cleanedString2 := strings.TrimPrefix(cleanedString, "~")
+	err = json.Unmarshal([]byte(cleanedString2), &loans)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	return loans
+}
+
+func BackupLoans() {
+	merchantService := services.NewMerchantService()
+	merchants, _ := merchantService.GetAllMerchants()
+	var totalLoans []models.Loan
+	for _, merchant := range merchants {
+		loans := GetMerchantLoans(merchant.Address)
+		totalLoans = append(totalLoans, loans...)
+	}
+
+	loansJSON, err := json.MarshalIndent(totalLoans, "", "  ")
+	if err != nil {
+		fmt.Printf("Failed to marshal loans to JSON: %v\n", err)
+		return
+	}
+
+	// Create the file name with current timestamp
+	timestamp := time.Now().Format("20060102_150405") // Use timestamp format: YYYYMMDD_HHMMSS
+	fileName := fmt.Sprintf("loans_%s.json", timestamp)
+
+	// Create and write to the JSON file
+	file, err := os.Create(fileName)
+	if err != nil {
+		fmt.Printf("Failed to create JSON file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(loansJSON)
+	if err != nil {
+		fmt.Printf("Failed to write to JSON file: %v\n", err)
+		return
+	}
+
+	cmd := exec.Command("/Users/administrator/Desktop/code/go/akavesdk/bin/akavecli", "ipc", "file", "upload", "ethbankok", fileName,
+		"--node-address=connect.akave.ai:5500",
+		"--private-key=433612ce7e05c67da37b1f421bd6dfa5b8d26415b389c570443324994e82954d")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	// Print the output
+	fmt.Printf("Command Output:\n%s\n", output)
+}
+
+func SetMerchantMaxLoanLimit(merchat models.Merchants) {
+	// Connect to the Ethereum network
+	client, err := ethclient.Dial(infuraURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+
+	// Parse the contract address
+	contractAddr := common.HexToAddress(contractAddressHex)
+	merchantAddr := common.HexToAddress(merchat.Address)
+
+	// Load private key
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	if err != nil {
+		log.Fatalf("Failed to load private key: %v", err)
+	}
+
+	// Derive public key and address
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatalf("Error casting public key to ECDSA")
+	}
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	// Get the nonce for the transaction
+	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		log.Fatalf("Failed to get nonce: %v", err)
+	}
+
+	// Pack the arguments for the `setMerchantMaxLoanLimit` function
+	contractAbi, err := abi.JSON(strings.NewReader(`[PASTE ABI JSON HERE]`))
+	if err != nil {
+		log.Fatalf("Failed to parse ABI: %v", err)
+	}
+
+	maxLimitBigInt := big.NewInt(int64(merchat.Limit))
+	data, err := contractAbi.Pack("setMerchantMaxLoanLimit", merchantAddr, maxLimitBigInt)
+	if err != nil {
+		log.Fatalf("Failed to pack arguments: %v", err)
+	}
+
+	// Set the gas price and limit
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		log.Fatalf("Failed to suggest gas price: %v", err)
+	}
+
+	gasLimit := uint64(300000) // Set a sufficient gas limit
+
+	// Create the transaction
+	tx := types.NewTransaction(nonce, contractAddr, big.NewInt(0), gasLimit, gasPrice, data)
+
+	// Sign the transaction
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		log.Fatalf("Failed to get chain ID: %v", err)
+	}
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+	if err != nil {
+		log.Fatalf("Failed to sign transaction: %v", err)
+	}
+
+	// Send the transaction
+	err = client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		log.Fatalf("Failed to send transaction: %v", err)
+	}
+
+	fmt.Printf("Transaction sent: %s\n", signedTx.Hash().Hex())
 }

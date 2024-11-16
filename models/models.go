@@ -14,6 +14,7 @@ type Merchants struct {
 	Address   string    `json:"address"`
 	IDNumber  string    `json:"id_number" binding:"required"`
 	Credit    float64   `json:"credit" gorm:"default:0"`
+	Limit     float64   `json:"limit"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

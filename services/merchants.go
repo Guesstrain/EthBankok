@@ -12,12 +12,12 @@ import (
 
 	"github.com/Guesstrain/EthBankok/config"
 	"github.com/Guesstrain/EthBankok/models"
-	"github.com/onflow/go-ethereum"
-	"github.com/onflow/go-ethereum/accounts/abi"
-	"github.com/onflow/go-ethereum/common"
-	"github.com/onflow/go-ethereum/core/types"
-	"github.com/onflow/go-ethereum/crypto"
-	"github.com/onflow/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type MerchantService interface {
@@ -130,6 +130,7 @@ func GetCredit(merchant models.Merchants) (models.Merchants, error) {
 	}
 
 	merchant.Credit = result.Credit
+
 	return merchant, nil
 }
 
