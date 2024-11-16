@@ -28,9 +28,9 @@ type MerchantService interface {
 }
 
 const (
-	infuraURL          = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"    // Replace with your Infura URL
-	privateKeyHex      = "433612ce7e05c67da37b1f421bd6dfa5b8d26415b389c570443324994e82954d" // Replace with your wallet's private key
-	contractAddressHex = "0x591fce342d24758af968fd05a2ef550091ea4e2b"                       // Replace with your deployed contract address
+	infuraURL          = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432" // Replace with your Infura URL
+	privateKeyHex      = ""                                                              // Replace with your wallet's private key
+	contractAddressHex = "0x591fce342d24758af968fd05a2ef550091ea4e2b"                    // Replace with your deployed contract address
 	contractABI        = `[
 	{
 		"inputs": [
