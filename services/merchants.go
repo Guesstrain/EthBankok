@@ -1,13 +1,23 @@
 package services
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
+	"strings"
 
 	"github.com/Guesstrain/EthBankok/config"
 	"github.com/Guesstrain/EthBankok/models"
+	"github.com/onflow/go-ethereum"
+	"github.com/onflow/go-ethereum/accounts/abi"
+	"github.com/onflow/go-ethereum/common"
+	"github.com/onflow/go-ethereum/core/types"
+	"github.com/onflow/go-ethereum/crypto"
+	"github.com/onflow/go-ethereum/ethclient"
 )
 
 type MerchantService interface {
@@ -16,6 +26,58 @@ type MerchantService interface {
 	GetAllMerchants() ([]models.Merchants, error)
 	GetMerchantByAddress(address string) (models.Merchants, error)
 }
+
+const (
+	infuraURL          = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"    // Replace with your Infura URL
+	privateKeyHex      = "433612ce7e05c67da37b1f421bd6dfa5b8d26415b389c570443324994e82954d" // Replace with your wallet's private key
+	contractAddressHex = "0x591fce342d24758af968fd05a2ef550091ea4e2b"                       // Replace with your deployed contract address
+	contractABI        = `[
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_greeting",
+				"type": "string"
+			}
+		],
+		"name": "setGreeting",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"inputs": [],
+		"name": "getGreeting",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "greeting",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]`
+)
 
 type MerchantServiceImpl struct{}
 
@@ -69,4 +131,83 @@ func GetCredit(merchant models.Merchants) (models.Merchants, error) {
 
 	merchant.Credit = result.Credit
 	return merchant, nil
+}
+
+func CallRefundContract() error {
+	client, err := ethclient.Dial(infuraURL)
+	if err != nil {
+		return fmt.Errorf("Failed to connect to Ethereum client: %v", err)
+	}
+	defer client.Close()
+
+	// Load the ABI
+	contractABI := `[{"constant":false,"inputs":[],"name":"triggerRepayments","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}]`
+	parsedABI, err := abi.JSON(strings.NewReader(contractABI))
+	if err != nil {
+		return fmt.Errorf("Failed to parse contract ABI: %v", err)
+	}
+
+	// Create contract instance
+	repaymentManagerAddress := common.HexToAddress(contractAddressHex)
+
+	// Load the private key
+	privateKey, err := crypto.HexToECDSA("YOUR_PRIVATE_KEY")
+	if err != nil {
+		return fmt.Errorf("Failed to load private key: %v", err)
+	}
+
+	// Get the public address
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("Cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	// Get the nonce
+	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		return fmt.Errorf("Failed to get nonce: %v", err)
+	}
+
+	// Get the gas price
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to get gas price: %v", err)
+	}
+
+	// Pack the method call
+	callData, err := parsedABI.Pack("triggerRepayments")
+	if err != nil {
+		return fmt.Errorf("Failed to pack triggerRepayments call: %v", err)
+	}
+
+	// Estimate gas
+	gasLimit, err := client.EstimateGas(context.Background(), ethereum.CallMsg{
+		To:   &repaymentManagerAddress,
+		Data: callData,
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to estimate gas: %v", err)
+	}
+
+	// Create the transaction
+	tx := types.NewTransaction(nonce, repaymentManagerAddress, big.NewInt(0), gasLimit, gasPrice, callData)
+
+	// Sign the transaction
+	chainID := big.NewInt(11155111) // Sepolia testnet chain ID
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+	if err != nil {
+		return fmt.Errorf("Failed to sign transaction: %v", err)
+	}
+
+	// Send the transaction
+	err = client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return fmt.Errorf("Failed to send transaction: %v", err)
+	}
+
+	fmt.Printf("Transaction sent: %s\n", signedTx.Hash().Hex())
+	return nil
 }

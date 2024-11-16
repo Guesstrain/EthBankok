@@ -32,13 +32,31 @@ func main() {
 	router.GET("/merchants", func(c *gin.Context) {
 		controllers.GetAllMerchantsHandler(c, merchantService)
 	})
-	router.GET("/transactions", func(c *gin.Context) {
+	router.GET("/transactionsUser", func(c *gin.Context) {
 		controllers.GetTransactionHistory(c)
+	})
+	router.GET("/transactionsMerchants", func(c *gin.Context) {
+		controllers.GetTransactionHistoryMerchants(c)
 	})
 
 	go scheduleCreditUpdate(merchantService)
 
 	router.Run(":8080")
+}
+
+func scheduleRefund() {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+		err := services.CallRefundContract()
+		if err != nil {
+			fmt.Println("Error :", err)
+		} else {
+			fmt.Println("Successfully updated merchant credits.")
+		}
+	}
 }
 
 func scheduleCreditUpdate(merchantService services.MerchantService) {
@@ -49,9 +67,9 @@ func scheduleCreditUpdate(merchantService services.MerchantService) {
 		<-ticker.C
 		err := updateAllMerchantsCredit(merchantService)
 		if err != nil {
-			fmt.Println("Error updating merchant credits:", err)
+			fmt.Println("Error callrefund:", err)
 		} else {
-			fmt.Println("Successfully updated merchant credits.")
+			fmt.Println("Successfully called refund.")
 		}
 	}
 }
