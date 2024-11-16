@@ -3,6 +3,8 @@ package models
 import (
 	"math/big"
 	"time"
+
+	"github.com/onflow/go-ethereum/common"
 )
 
 type Merchants struct {
@@ -19,4 +21,14 @@ type Transaction struct {
 	From  string   `json:"from"`
 	To    string   `json:"to"`
 	Value *big.Int `json:"value"`
+}
+
+type Loan struct {
+	LoanID       *big.Int       `json:"loanId"`
+	Buyer        common.Address `json:"buyer"`
+	Merchant     common.Address `json:"merchant"`
+	Amount       *big.Int       `json:"amount"`
+	DueDate      *big.Int       `json:"dueDate"`
+	RepaidAmount *big.Int       `json:"repaidAmount"`
+	IsRepaid     bool           `json:"isRepaid"`
 }

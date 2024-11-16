@@ -38,6 +38,9 @@ func main() {
 	router.GET("/transactionsMerchants", func(c *gin.Context) {
 		controllers.GetTransactionHistoryMerchants(c)
 	})
+	router.GET("/transactions", func(c *gin.Context) {
+		controllers.GetAllLoans(c)
+	})
 
 	go scheduleCreditUpdate(merchantService)
 

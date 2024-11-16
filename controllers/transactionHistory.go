@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -17,7 +19,9 @@ import (
 
 const (
 	infuraURL          = "https://sepolia.infura.io/v3/d68e6d7c2e5c42fbb30fe563ada8f432"
-	contractAddressHex = "0xd4d81C04938cd751723DE23e47BBA20C59bf1B94"
+	contractAddressHex = "0xAF7785F8dDFC9629949eDdb07Ba14d53Fc853C14"
+	privateKeyHex      = "83476b334581d65de37aee25349b36c5b5e917c7acddb3fc9ff50ef5feb87eaa" // Replace with your wallet's private key
+	walletAddressHex   = "0xDb90007b986c2711d3814b1760EDC3b2DfB71e76"
 	contractABI        = `[
 {
 "inputs": [
@@ -429,12 +433,12 @@ const (
 "type": "address"
 }
 ],
-"name": "getLoanIds",
+"name": "getLoansBetween",
 "outputs": [
 {
-"internalType": "uint256",
+"internalType": "string",
 "name": "",
-"type": "uint256"
+"type": "string"
 }
 ],
 "stateMutability": "view",
@@ -444,16 +448,11 @@ const (
 "inputs": [
 {
 "internalType": "address",
-"name": "user",
-"type": "address"
-},
-{
-"internalType": "address",
 "name": "merchant",
 "type": "address"
 }
 ],
-"name": "getLoansBetween",
+"name": "getTransactions",
 "outputs": [
 {
 "internalType": "string",
@@ -858,7 +857,42 @@ const (
 "stateMutability": "nonpayable",
 "type": "function"
 }
-]`
+]
+
+自动还款合约[
+{
+"inputs": [],
+"name": "checkUpkeep",
+"outputs": [
+{
+"internalType": "bool",
+"name": "upkeepNeeded",
+"type": "bool"
+},
+{
+"internalType": "uint256[]",
+"name": "loanIdsToRepay",
+"type": "uint256[]"
+}
+],
+"stateMutability": "view",
+"type": "function"
+},
+{
+"inputs": [
+{
+"internalType": "uint256[]",
+"name": "loanIdsToRepay",
+"type": "uint256[]"
+}
+],
+"name": "performUpkeep",
+"outputs": [],
+"stateMutability": "nonpayable",
+"type": "function"
+}
+]
+`
 )
 
 func GetTransactionHistory(c *gin.Context) {
@@ -947,19 +981,75 @@ func GetTransactionHistoryMerchants(c *gin.Context) {
 		return
 	}
 	for _, lLog := range Lendlogs {
-		event, err := parsedABI.Unpack("Transfer", lLog.Data)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unpack event data"})
-			return
-		}
+		event := struct {
+			Amount  *big.Int
+			DueDate *big.Int
+			LoanId  *big.Int
+		}{}
+		err = parsedABI.UnpackIntoInterface(&event, "LoanGiven", lLog.Data)
 
 		from := lLog.Topics[1].Hex()
 		to := lLog.Topics[2].Hex()
-		value := event[0].(*big.Int)
+		fmt.Println("DueDate: ", event.DueDate)
+		fmt.Println("LoanId: ", event.LoanId)
+		value := event.Amount
 		TransactionList = append(TransactionList, models.Transaction{from, to, value})
 
 		fmt.Printf("lend from: %s, to: %s, value: %s\n", from, to, value.String())
 	}
 
 	c.JSON(http.StatusOK, TransactionList)
+}
+
+func GetAllLoans(c *gin.Context) error {
+	TargetParam := c.Query("target")
+
+	// Connect to the Ethereum network
+	client, err := ethclient.Dial(infuraURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+
+	// Create an instance of the contract
+	contractAddr := common.HexToAddress(contractAddressHex)
+	merchantAddr := common.HexToAddress(TargetParam)
+
+	// Use the ABI encoding to generate the appropriate call data for `getTransactions()`
+	// Here, we assume you've already parsed the contract ABI
+	contractAbi, err := abi.JSON(strings.NewReader(contractABI))
+	if err != nil {
+		log.Fatalf("Failed to parse ABI: %v", err)
+	}
+
+	// Pack the arguments for the `getTransactions` function
+	data, err := contractAbi.Pack("getTransactions", merchantAddr)
+	if err != nil {
+		log.Fatalf("Failed to pack arguments: %v", err)
+	}
+
+	// Prepare call message to invoke the contract
+	callMsg := ethereum.CallMsg{
+		To:   &contractAddr,
+		Data: data,
+	}
+
+	// Execute the call
+	result, err := client.CallContract(context.Background(), callMsg, nil)
+	if err != nil {
+		log.Fatalf("Error while calling the getTransactions function: %v", err)
+	}
+	var loans []models.Loan
+	var jsonString string
+	err = contractAbi.UnpackIntoInterface(&jsonString, "getTransactions", result)
+	if err != nil {
+		log.Fatalf("Failed to unpack result: %v", err)
+	}
+	cleanedString := strings.TrimSpace(jsonString)
+	cleanedString2 := strings.TrimPrefix(cleanedString, "~")
+	err = json.Unmarshal([]byte(cleanedString2), &loans)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	c.JSON(http.StatusOK, loans)
+	return nil
 }
