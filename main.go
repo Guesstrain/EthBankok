@@ -68,7 +68,7 @@ func scheduleRefund() {
 }
 
 func scheduleBackup() {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
 	for {
